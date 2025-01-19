@@ -1,7 +1,8 @@
-use rand::Rng;
-use std::collections::VecDeque;
 use itertools::Itertools;
 use rand::prelude::StdRng;
+use rand::{Rng, RngCore};
+use std::cmp::PartialEq;
+use std::collections::VecDeque;
 
 #[derive(Clone, Debug)]
 struct Ship {
@@ -14,8 +15,7 @@ struct Ship {
     ship_type: ShipType,
 }
 
-#[derive(Clone)]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 enum ShipType {
     Interceptor,
     Cruiser,
@@ -24,7 +24,6 @@ enum ShipType {
 }
 
 impl Ship {
-    fn roll_attack(&self, target: &mut Ship, rng: rand::rngs::ThreadRng) {}
     fn get_damage_index(&self) -> f32 {
         (self.weapon_1_dmg + self.weapon_2_dmg) as f32 * (1. + self.computer as f32 / 6.).min(1.)
     }
@@ -32,7 +31,7 @@ impl Ship {
 
 /// A fleet is a collection of ships
 /// The ships are sorted by initiative
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Fleet {
     ships: Vec<Ship>,
 }
@@ -95,33 +94,56 @@ struct AverageDamageIndex {
     damage: f32,
 }
 
-pub fn simulate_round(attacker: &mut Fleet, defender: &mut Fleet, mut rng: StdRng) {
-
-    
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BattleResult {
+    AttackerWins,
+    DefenderWins,
+    Draw,
+}
+pub fn simulate_battle<T: RngCore + Clone>(
+    attacker: &mut Fleet,
+    defender: &mut Fleet,
+    rng: &mut T,
+) -> BattleResult {
+    // let mut rng = rand::thread_rng();
+    while attacker.has_ships_left() && defender.has_ships_left() {
+        simulate_round(attacker, defender, rng);
+    }
+    if !attacker.has_ships_left() && !defender.has_ships_left() {
+        //todo: This should not happen, since the loop should terminate once one player does not have any ships left. Implement better error handling
+        BattleResult::Draw
+    } else if !attacker.has_ships_left() {
+        BattleResult::DefenderWins
+    } else {
+        BattleResult::AttackerWins
+    }
+}
+pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut Fleet, rng: &mut T) {
     //determine attack order
     let mut attacker_order = attacker.get_attack_order();
     let mut defender_order = defender.get_attack_order();
-    
+
     // The unwrapped values are safe, since the checks above ensure that there are ships left
     let mut best_attack_init = attacker_order.front().unwrap().initiative;
     let mut best_defend_init = defender_order.front().unwrap().initiative;
-    
+
     // Attack while there are ships left in both fleets and at least one opponent has ships that have not attacked yet
     // If an opponent has no ships left, his best_init value is set to -1
-    while attacker.has_ships_left() && defender.has_ships_left() &&( best_attack_init >= 0 || best_defend_init >= 0) {
+    while attacker.has_ships_left()
+        && defender.has_ships_left()
+        && (best_attack_init >= 0 || best_defend_init >= 0)
+    {
         // println!("Attacker: {:?}", attacker.ships);
         // println!("Defender: {:?}", defender.ships);
         // println!("best_attack_init: {:?}", best_attack_init);
         // println!("best_defend_init: {:?}", best_defend_init);
 
-
         // Compare who has the highest initiative. In case of a draw, the defender (option two) attacks first
-
 
         // If the attacker has greater initiative, the attacker attacks first,
         // otherwise (so if draw), the defender attacks first
         if best_attack_init > best_defend_init {
-            println!("Attacker attacks");
+            // println!("Attacker attacks");
             // Build a pool of all ships that attack at the same time
             let mut pool = AttackPool::new();
             while attacker_order.front().is_some()
@@ -129,28 +151,31 @@ pub fn simulate_round(attacker: &mut Fleet, defender: &mut Fleet, mut rng: StdRn
             {
                 pool.add_ship(
                     attacker.ships[attacker_order.pop_front().unwrap().index].clone(),
-                    rng.clone(),
+                    rng,
                 );
             }
             best_attack_init = match attacker_order.front() {
                 Some(x) => x.initiative,
-                // Temp value, since the attacker has no ships left. 
+                // Temp value, since the attacker has no ships left.
                 // The loop will be terminated next iteration and this value will  never be used
                 None => -1,
             };
-            
+
+            // println!("Attacker pool: {:?}", pool);
             pool.attack_fleet(defender);
             // println!("New defender fleet: {:?}", defender);
             // update defender attack order, since ships have been destroyed
             defender_order = defender.get_attack_order();
             // println!("New defender order: {:?}", defender_order);
-            
+
             // Remove all ships from the defender that have already attacked
-            while defender_order.front().is_some() && defender_order.front().unwrap().initiative > best_defend_init {
+            while defender_order.front().is_some()
+                && defender_order.front().unwrap().initiative > best_defend_init
+            {
                 defender_order.pop_front();
             }
         } else {
-            println!("Defender attacks");
+            // println!("Defender attacks");
             // The defender attacks first
             let mut pool = AttackPool::new();
             while defender_order.front().is_some()
@@ -158,26 +183,29 @@ pub fn simulate_round(attacker: &mut Fleet, defender: &mut Fleet, mut rng: StdRn
             {
                 pool.add_ship(
                     defender.ships[defender_order.pop_front().unwrap().index].clone(),
-                    rng.clone(),
+                    rng,
                 );
             }
             best_defend_init = match defender_order.front() {
                 Some(x) => x.initiative,
-                // Temp value, since the defender has no ships left. 
+                // Temp value, since the defender has no ships left.
                 // The loop will be terminated next iteration and this value will  never be used
                 None => -1,
             };
-            
+
             // println!("Defender pool: {:?}", pool);
-            
+
+            // println!("Defender pool: {:?}", pool);
             pool.attack_fleet(attacker);
             // println!("New attacker fleet: {:?}", attacker);
             // update attacker attack order, since ships have been destroyed
             attacker_order = attacker.get_attack_order();
             // println!("New attacker order: {:?}", attacker_order);
-            
+
             // Remove all ships from the attacker that have already attacked
-            while attacker_order.front().is_some() && attacker_order.front().unwrap().initiative > best_attack_init {
+            while attacker_order.front().is_some()
+                && attacker_order.front().unwrap().initiative > best_attack_init
+            {
                 attacker_order.pop_front();
             }
             // println!("New adapted attacker order: {:?}", attacker_order);
@@ -205,14 +233,25 @@ impl AttackPool {
     }
 
     #[inline]
-    fn add_ship(&mut self, ship: Ship, mut rng: StdRng) {
-        let roll = rng.gen_range(1..=6) + ship.computer;
+    fn add_ship<T: RngCore>(&mut self, ship: Ship, rng: &mut T) {
+        // let roll = rng.gen_range(1..=6) + ship.computer;
+        let roll = rng.gen_range(1..=6);
+        let roll = match roll {
+            6 => 1_000_000,
+            1 => -1_000_000,
+            _ => roll + ship.computer,
+        };
         self.enhanced_rolls.push(AttackRoll {
             damage: ship.weapon_1_dmg,
             hit_dc: roll,
         });
         if ship.weapon_2_dmg > 0 {
-            let roll = rng.gen_range(1..=6) + ship.computer;
+            let roll = rng.gen_range(1..=6);
+            let roll = match roll {
+                6 => 1_000_000,
+                1 => -1_000_000,
+                _ => roll + ship.computer,
+            };
             self.enhanced_rolls.push(AttackRoll {
                 damage: ship.weapon_2_dmg,
                 hit_dc: roll,
@@ -222,7 +261,7 @@ impl AttackPool {
 
     fn attack_fleet(&self, opposing_fleet: &mut Fleet) {
         let mut ships = opposing_fleet.ships.clone();
-        // Sort ships by damage index, hightes possible
+        // Sort ships by damage index, highest possible first
         ships.sort_by(|a, b| {
             a.get_damage_index()
                 .partial_cmp(&b.get_damage_index())
@@ -231,17 +270,19 @@ impl AttackPool {
                 .reverse()
         });
 
-        let damage_index = ships
-            .iter()
-            .map(|ship| ship.get_damage_index())
-            .collect::<Vec<f32>>();
+        // let damage_index = ships
+        //     .iter()
+        //     .map(|ship| ship.get_damage_index())
+        //     .collect::<Vec<f32>>();
         let mut hit_graph = HitGraph::new(self.enhanced_rolls.len(), ships.len());
 
         for i in 0..self.enhanced_rolls.len() {
             ships
                 .iter()
                 .enumerate()
-                .filter(|(_, ship)| self.enhanced_rolls[i].hit_dc >= ship.shield)
+                // The attack hits if the roll is greater than 6 (shield and computer values ignored)
+                .filter(|(_, ship)| self.enhanced_rolls[i].hit_dc >= ship.shield + 6)
+                .filter(|(_, ship)| ship.hull >= 0)
                 .map(|(i, _)| i)
                 .for_each(|j| {
                     hit_graph.add_edge(i, j, self.enhanced_rolls[i].damage as u32);
@@ -267,10 +308,14 @@ impl AttackPool {
             // There is a ship that can be destroyed. Since the list is sorted, the first element is the one with the highest damage index
             if let Some(ship_index) = targeted_ship {
                 // Need one more damage as the hull value to destroy the ship
-                hit_graph.deactivate_edges_to_ship(ship_index, ships[ship_index].hull as u32 + 1);
+                hit_graph.deactivate_all_rolls_attacking_max_dmg(
+                    ship_index,
+                    ships[ship_index].hull as u32 + 1,
+                );
+                hit_graph.deactivate_all_edges_to_ship(ship_index);
                 ships[ship_index].hull = -1;
-                println!("Destroyed ship: {:?}", ship_index);
-                println!("New hit graph: {:?}", hit_graph);
+                // println!("Destroyed ship: {:?}", ship_index);
+                // println!("New hit graph: {:?}", hit_graph);
             } else {
                 // No ship can be destroyed. The ship with the highest damage index is attacked
                 let ship_index = ships
@@ -290,8 +335,8 @@ impl AttackPool {
                 let total_damage = hit_graph.get_total_possible_damage_to_ship(ship_index);
 
                 ships[ship_index].hull -= total_damage as i32;
-                println!("Damaged ship: {:?} with {} damage", ship_index, total_damage);
-                hit_graph.deactivate_all_edges_to_ship(ship_index);
+                // println!("Damaged ship: {:?} with {} damage", ship_index, total_damage);
+                hit_graph.deactivate_all_rolls_attacking(ship_index);
             }
         }
 
@@ -344,11 +389,21 @@ impl HitGraph {
     }
 
     fn deactivate_all_edges_to_ship(&mut self, ship_index: usize) {
-        let affected_ships = self.edges.iter().filter(|edge| edge.to == ship_index)
+        for edge in self.edges.iter_mut().filter(|edge| edge.to == ship_index) {
+            edge.active = false;
+        }
+    }
+
+    /// Deactivates all graph edges originating from ships attacking the ship with the given index
+    fn deactivate_all_rolls_attacking(&mut self, ship_index: usize) {
+        let affected_ships = self
+            .edges
+            .iter()
+            .filter(|edge| edge.to == ship_index)
             .map(|edge| edge.from)
             .unique()
             .collect::<Vec<usize>>();
-        
+
         for ship in affected_ships {
             for edge in self.edges.iter_mut().filter(|edge| edge.from == ship) {
                 edge.active = false;
@@ -358,19 +413,21 @@ impl HitGraph {
         //     edge.active = false;
         // }
     }
-    
+
     fn deactivate_all_edges_from_attack_roll(&mut self, index: usize) {
-        println!("Deactivate all edges from attack roll {:?}", index);
+        // println!("Deactivate all edges from attack roll {:?}", index);
         for edge in self.edges.iter_mut().filter(|edge| edge.from == index) {
             edge.active = false;
         }
     }
 
-    /// Deactivates the minimum amount of edges to ensure that the ship with the given index is destroyed
-    /// The 'minimum' is determined by a greedy algorithm that deactivates the edge with the highest damage first
+    /// Deactivates all edges originating from attack rolls targeting the ship with the given index,
+    /// where the damage originating from all deactivated attacking ships is only 'damage_needed'
+    /// The minimum amount of damage needed is determined by a greedy algorithm that deactivates
+    /// the ship with the highest damage first
     /// This may not be the optimal solution in all cases.
-    fn deactivate_edges_to_ship(&mut self, ship_index: usize, damage_needed: u32) {
-        println!("Deactivate edges to ship {:?}. Damage needed: {}", ship_index, damage_needed);
+    fn deactivate_all_rolls_attacking_max_dmg(&mut self, ship_index: usize, damage_needed: u32) {
+        // println!("Deactivate edges to ship {:?}. Damage needed: {}", ship_index, damage_needed);
         let total_damage = self.get_total_possible_damage_to_ship(ship_index);
 
         if total_damage < damage_needed {
@@ -379,9 +436,9 @@ impl HitGraph {
             return;
         }
         if total_damage == damage_needed {
-            println!("Exactly enough damage to destroy ship. Deactivate all edges to {:?}", ship_index);
+            // println!("Exactly enough damage to destroy ship. Deactivate all edges to {:?}", ship_index);
             // Deactivate all edges to the ship
-            self.deactivate_all_edges_to_ship(ship_index);
+            self.deactivate_all_rolls_attacking(ship_index);
             return;
         }
 
@@ -401,14 +458,14 @@ impl HitGraph {
 
             if edge_to_deactivate.is_some() {
                 let edge_to_deactivate = edge_to_deactivate.unwrap();
-                println!("edge_to_deactivate: {:?}", edge_to_deactivate);
+                // println!("edge_to_deactivate: {:?}", edge_to_deactivate);
                 // println!("Deactivate edge from {:?} to {:?} with damage {:?}", edge_to_deactivate.from, edge_to_deactivate.to, edge_to_deactivate.damage);
                 // edge_to_deactivate.active = false;
                 damage_needed -= edge_to_deactivate.damage as i32;
-                
+
                 let from_index = edge_to_deactivate.from;
                 self.deactivate_all_edges_from_attack_roll(from_index);
-                
+
                 break;
             } else {
                 // Error, should not happen since the calling algorithm ensures that the ship can be destroyed
@@ -427,8 +484,7 @@ impl HitGraph {
     }
 }
 
-#[derive(Clone)]
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 struct HitEdge {
     from: usize,
     to: usize,
@@ -438,57 +494,169 @@ struct HitEdge {
     /// in order to avoid changing the graph structure
     active: bool,
 }
+
 fn main() {
-    let t = rand::thread_rng();
-    println!("Hello, world!");
+    let mut rng = rand::thread_rng();
+    let attacker_fleet = Fleet {
+        ships: vec![
+            Ship {
+                hull: 2,
+                initiative: 1,
+                shield: 0,
+                computer: 1,
+                weapon_1_dmg: 2,
+                weapon_2_dmg: 0,
+                ship_type: ShipType::Interceptor,
+            },
+            Ship {
+                hull: 2,
+                initiative: 1,
+                shield: 0,
+                computer: 1,
+                weapon_1_dmg: 2,
+                weapon_2_dmg: 0,
+                ship_type: ShipType::Interceptor,
+            },
+        ],
+    };
+
+    let defender_fleet = Fleet {
+        ships: vec![
+            Ship {
+                hull: 2,
+                initiative: 0,
+                shield: 0,
+                computer: 2,
+                weapon_1_dmg: 1,
+                weapon_2_dmg: 0,
+                ship_type: ShipType::Interceptor,
+            },
+            Ship {
+                hull: 2,
+                initiative: 0,
+                shield: 0,
+                computer: 1,
+                weapon_1_dmg: 2,
+                weapon_2_dmg: 0,
+                ship_type: ShipType::Interceptor,
+            },
+        ],
+    };
+    let mut defender_wins = 0;
+    for _ in 0..1000 {
+        let result = simulate_battle(
+            &mut attacker_fleet.clone(),
+            &mut defender_fleet.clone(),
+            &mut rng,
+        );
+        if result == BattleResult::DefenderWins {
+            defender_wins += 1;
+        }
+    }
+    println!("Result: {:?}", (defender_wins as f32) / (1000.0));
 }
 
 #[cfg(test)]
 mod tests {
-    use rand::SeedableRng;
     use crate::*;
+    use rand::SeedableRng;
 
     #[test]
     pub fn test_fleet_attack() {
         let mut attacker = Fleet {
-            ships: vec![
-                Ship {
-                    hull: 0,
-                    initiative: 10,
-                    shield: 0,
-                    computer: 5,
-                    weapon_1_dmg: 2,
-                    weapon_2_dmg: 0,
-                    ship_type: ShipType::Interceptor,
-                },
-            ],
+            ships: vec![Ship {
+                hull: 0,
+                initiative: 10,
+                shield: 0,
+                computer: 5,
+                weapon_1_dmg: 2,
+                weapon_2_dmg: 0,
+                ship_type: ShipType::Interceptor,
+            }],
         };
         let mut defender = Fleet {
-            ships: vec![
-                Ship {
-                    hull: 0,
-                    initiative: 0,
-                    shield: 0,
-                    computer: 5,
-                    weapon_1_dmg: 2,
-                    weapon_2_dmg: 0,
-                    ship_type: ShipType::Interceptor,
-                },
-            ],
+            ships: vec![Ship {
+                hull: 0,
+                initiative: 0,
+                shield: 0,
+                computer: 5,
+                weapon_1_dmg: 2,
+                weapon_2_dmg: 0,
+                ship_type: ShipType::Interceptor,
+            }],
         };
         // Create a SEEDED RNG
-        
-        let seeded_rng = rand::rngs::StdRng::seed_from_u64(0);
-        
-        
-        
-        
+
+        let mut seeded_rng = rand::rngs::StdRng::seed_from_u64(0);
+
         while attacker.has_ships_left() && defender.has_ships_left() {
-            println!("New Round: \n");
-            simulate_round(&mut attacker, &mut defender, seeded_rng.clone());
+            // println!("New Round: \n");
+            simulate_round(&mut attacker, &mut defender, &mut seeded_rng);
         }
         // simulate_round(&mut attacker, &mut defender, seeded_rng);
         assert!(!defender.has_ships_left());
     }
-    
+
+    #[test]
+    pub fn test2() {
+        let mut rng = StdRng::seed_from_u64(0);
+        let attacker_fleet = Fleet {
+            ships: vec![
+                Ship {
+                    hull: 1,
+                    initiative: 1,
+                    shield: 0,
+                    computer: 1,
+                    weapon_1_dmg: 2,
+                    weapon_2_dmg: 0,
+                    ship_type: ShipType::Interceptor,
+                },
+                Ship {
+                    hull: 2,
+                    initiative: 1,
+                    shield: 0,
+                    computer: 1,
+                    weapon_1_dmg: 2,
+                    weapon_2_dmg: 0,
+                    ship_type: ShipType::Interceptor,
+                },
+            ],
+        };
+
+        let defender_fleet = Fleet {
+            ships: vec![
+                Ship {
+                    hull: 2,
+                    initiative: 0,
+                    shield: 0,
+                    computer: 2,
+                    weapon_1_dmg: 2,
+                    weapon_2_dmg: 0,
+                    ship_type: ShipType::Interceptor,
+                },
+                Ship {
+                    hull: 2,
+                    initiative: 0,
+                    shield: 0,
+                    computer: 2,
+                    weapon_1_dmg: 2,
+                    weapon_2_dmg: 0,
+                    ship_type: ShipType::Interceptor,
+                },
+            ],
+        };
+        let mut defenoder_wins = 0;
+        for i in 0..10 {
+            println!("Simulation {}", i);
+            let result = simulate_battle(
+                &mut attacker_fleet.clone(),
+                &mut defender_fleet.clone(),
+                &mut rng,
+            );
+            if result == BattleResult::DefenderWins {
+                defenoder_wins += 1;
+            }
+        }
+        println!("Result: {:?}", (defenoder_wins as f32) / (1000.0));
+    }
 }
