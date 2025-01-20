@@ -16,6 +16,23 @@ pub struct Ship {
 }
 
 #[wasm_bindgen]
+impl Ship {
+    #[wasm_bindgen(constructor)]
+    pub fn new(hull: i32, initiative: i32, shield: i32, computer: i32, weapon_1_dmg: i32, weapon_2_dmg: i32, ship_type: ShipType) -> Ship {
+        Ship {
+            hull,
+            initiative,
+            shield,
+            computer,
+            weapon_1_dmg,
+            weapon_2_dmg,
+            ship_type,
+        }
+    }
+
+}
+
+#[wasm_bindgen]
 #[derive(Clone, Copy, Debug)]
 pub enum ShipType {
     Interceptor,
@@ -41,6 +58,7 @@ pub struct Fleet {
 #[wasm_bindgen]
 impl Fleet {
 
+    #[wasm_bindgen(constructor)]
     pub fn new(ships: Vec<Ship>) -> Fleet {
         Fleet {
             ships
@@ -132,6 +150,9 @@ pub fn simulate_battle<T: RngCore + Clone>(
 }
 
 pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut Fleet, rng: &mut T) {
+    if !attacker.has_ships_left() || !defender.has_ships_left() {
+        return;
+    }
     //determine attack order
     let mut attacker_order = attacker.get_attack_order();
     let mut defender_order = defender.get_attack_order();
@@ -146,7 +167,7 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
         && defender.has_ships_left()
         && (best_attack_init >= 0 || best_defend_init >= 0)
     {
-        // println!("Attacker: {:?}", attacker.ships);
+        println!("Attacker: {:?}", attacker.ships);
         // println!("Defender: {:?}", defender.ships);
         // println!("best_attack_init: {:?}", best_attack_init);
         // println!("best_defend_init: {:?}", best_defend_init);

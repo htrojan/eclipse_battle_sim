@@ -1,7 +1,7 @@
-use rand::{Rng, RngCore};
+use rand::{Rng, RngCore, SeedableRng};
 use itertools::Itertools;
-
-#[cfg(target_arch = "wasm32")]
+use rand::rngs::{StdRng, ThreadRng};
+// #[cfg(target_arch = "wasm32")]
 use wasm_bindgen::prelude::*;
 
 mod simulator;
@@ -10,17 +10,29 @@ pub use simulator::{BattleResult, Fleet, Ship, ShipType};
 #[cfg(not(target_arch = "wasm32"))]
 pub use simulator::{simulate_round, simulate_battle};
 
+#[wasm_bindgen]
+pub struct RngState {
+    rng_state: StdRng,
+}
+
+#[wasm_bindgen]
+impl RngState {
+    #[wasm_bindgen(constructor)]
+    pub fn new(seed: u64) -> Self {
+        let rng_state = StdRng::seed_from_u64(seed);
+        RngState { rng_state }
+    }
+}
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
-pub fn simulate_round(attacker: &mut Fleet, defender: &mut Fleet) {
-    let mut rng = rand::thread_rng();
-    simulator::simulate_round(attacker, defender, &mut rng);
+pub fn simulate_round(attacker: &mut Fleet, defender: &mut Fleet, rng: &mut RngState) {
+    simulator::simulate_round(attacker, defender, &mut rng.rng_state);
 }
 
 #[cfg(target_arch = "wasm32")]
-pub fn simulate_battle(attacker: &mut Fleet, defender: &mut Fleet) -> BattleResult {
-    let mut rng = rand::thread_rng();
-    simulator::simulate_battle(attacker, defender, &mut rng)
+#[wasm_bindgen]
+pub fn simulate_battle(attacker: &mut Fleet, defender: &mut Fleet, rng: &mut RngState) -> BattleResult {
+    simulator::simulate_battle(attacker, defender, &mut rng.rng_state)
 }
 
 #[cfg(target_arch = "wasm32")]
