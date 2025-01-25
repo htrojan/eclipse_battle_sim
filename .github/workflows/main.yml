@@ -38,7 +38,7 @@ jobs:
       run: |
         cd web
         npm install
-        npm run build
+        npm run build-only
     - name: upload artifact
       uses: actions/upload-artifact@v4
       with: 
