@@ -11,10 +11,11 @@ import topLevelAwait from "vite-plugin-top-level-await";
 export default defineConfig({
     plugins: [
         vue(),
-        vueDevTools(),
+        // vueDevTools(),
         wasm(),
         topLevelAwait(),
     ],
+    base: '/eclipse_battle_sim/',
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./src', import.meta.url))
