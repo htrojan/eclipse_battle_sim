@@ -1,0 +1,54 @@
+name: Build website
+
+on:
+  workflow_dispatch:
+  push:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install rust
+      run: |
+        rustup install stable
+        rustup default stable
+    - name: Run tests
+      run: |
+        cd simulator
+        cargo test --verbose
+        cd ..
+    - name: setup wasm-pack
+      uses: jetli/wasm-pack-action@v0.4.0
+    - name: Build Wasm
+      run: |
+        cd simulator
+        wasm-pack build --release
+        cd ..
+    - name: setup-node
+      uses: actions/setup-node@v4
+      with: 
+        node-version: 18
+    - name: build webpage
+      run: |
+        cd web
+        npm install
+        npm run build
+    - name: upload artifact
+      uses: actions/upload-artifact@v4
+      with: 
+        name: build_artifact
+        path: www/dist/
+
+    - name: Deploy to GitHub Pages
+      run: |
+        git config --global user.name 'github-actions[bot]'
+        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+        git add web/dist -f
+        git commit -m 'Deploy to GitHub Pages'
+        git push origin `git subtree split --prefix web/dist main`:gh-pages --force
