@@ -13,7 +13,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
+    - name: Configure Pages
+      uses: actions/configure-pages@v5
     - name: Install rust
       run: |
         rustup install stable
@@ -38,17 +40,29 @@ jobs:
       run: |
         cd web
         npm install
-        npm run build
-    - name: upload artifact
-      uses: actions/upload-artifact@v4
+        npm run build-only
+        cd ..
+    - name: upload pages artifact
+      uses: actions/upload-pages-artifact@v3
       with: 
-        name: build_artifact
-        path: www/dist/
+        path: web/dist/
 
-    - name: Deploy to GitHub Pages
-      run: |
-        git config --global user.name 'github-actions[bot]'
-        git config --global user.email 'github-actions[bot]@users.noreply.github.com'
-        git add web/dist -f
-        git commit -m 'Deploy to GitHub Pages'
-        git push origin `git subtree split --prefix web/dist main`:gh-pages --force
+    # Deployment job
+  deploy:
+    # Grant GITHUB_TOKEN the permissions required to make a Pages deployment
+    permissions:
+      pages: write      # to deploy to Pages
+      id-token: write   # to verify the deployment originates from an appropriate source
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+    
