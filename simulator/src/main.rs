@@ -2,58 +2,68 @@ use eclipse_sim::{BattleResult, Fleet, Ship, ShipType};
 
 fn main() {
     let mut rng = rand::thread_rng();
-    let attacker_fleet = Fleet::new (vec![
+    let defender_fleet = Fleet::new (vec![
+        Ship {
+            hull: 6,
+            initiative: 4,
+            shield: 0,
+            computer: 2,
+            weapon_1_dmg: 3,
+            weapon_2_dmg: 0,
+            ship_type: ShipType::Interceptor,
+        },
             Ship {
-                hull: 2,
-                initiative: 1,
+                hull: 6,
+                initiative: 4,
                 shield: 0,
-                computer: 1,
-                weapon_1_dmg: 2,
-                weapon_2_dmg: 0,
-                ship_type: ShipType::Interceptor,
-            },
-            Ship {
-                hull: 2,
-                initiative: 1,
-                shield: 0,
-                computer: 1,
-                weapon_1_dmg: 2,
+                computer: 2,
+                weapon_1_dmg: 3,
                 weapon_2_dmg: 0,
                 ship_type: ShipType::Interceptor,
             },
         ],);
 
-    let defender_fleet = Fleet::new(vec![
+    let attacker_fleet = Fleet::new(vec![
+        Ship {
+            hull: 2,
+            initiative: 4,
+            shield: 0,
+            computer: 4,
+            weapon_1_dmg: 3,
+            weapon_2_dmg: 0,
+            ship_type: ShipType::Interceptor,
+        },
             Ship {
-                hull: 2,
-                initiative: 0,
+                hull: 0,
+                initiative: 5,
                 shield: 0,
-                computer: 2,
-                weapon_1_dmg: 1,
-                weapon_2_dmg: 0,
-                ship_type: ShipType::Interceptor,
-            },
-            Ship {
-                hull: 2,
-                initiative: 0,
-                shield: 0,
-                computer: 1,
+                computer: 0,
                 weapon_1_dmg: 2,
-                weapon_2_dmg: 0,
+                weapon_2_dmg: 2,
                 ship_type: ShipType::Interceptor,
             },
+        Ship {
+            hull: 0,
+            initiative: 5,
+            shield: 0,
+            computer: 0,
+            weapon_1_dmg: 2,
+            weapon_2_dmg: 2,
+            ship_type: ShipType::Interceptor,
+        },
         ],);
-    let mut defender_wins = 0;
-    for _ in 0..1000 {
+    let mut attacker_wins = 0;
+    let n = 1_000_000;
+    for _ in 0..n {
         let result = eclipse_sim::simulate_battle(
             &mut attacker_fleet.clone(),
             &mut defender_fleet.clone(),
             &mut rng,
         );
-        if result == BattleResult::DefenderWins {
-            defender_wins += 1;
+        if result == BattleResult::AttackerWins {
+            attacker_wins += 1;
         }
     }
-    println!("Result: {:?}", (defender_wins as f32) / (1000.0));
+    println!("Result: {:?}", (attacker_wins as f32) / (n as f32));
 }
 

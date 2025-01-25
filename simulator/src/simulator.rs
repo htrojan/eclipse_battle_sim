@@ -17,6 +17,21 @@ pub struct Ship {
 
 #[wasm_bindgen]
 impl Ship {
+    pub fn clone(&self) -> Ship {
+        Ship {
+            hull: self.hull,
+            initiative: self.initiative,
+            shield: self.shield,
+            computer: self.computer,
+            weapon_1_dmg: self.weapon_1_dmg,
+            weapon_2_dmg: self.weapon_2_dmg,
+            ship_type: self.ship_type,
+        }
+    }
+}
+
+#[wasm_bindgen]
+impl Ship {
     #[wasm_bindgen(constructor)]
     pub fn new(hull: i32, initiative: i32, shield: i32, computer: i32, weapon_1_dmg: i32, weapon_2_dmg: i32, ship_type: ShipType) -> Ship {
         Ship {
@@ -62,6 +77,12 @@ impl Fleet {
     pub fn new(ships: Vec<Ship>) -> Fleet {
         Fleet {
             ships
+        }
+    }
+
+    pub fn clone(&self) -> Fleet {
+        Fleet {
+            ships: self.ships.clone()
         }
     }
 
@@ -167,7 +188,7 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
         && defender.has_ships_left()
         && (best_attack_init >= 0 || best_defend_init >= 0)
     {
-        println!("Attacker: {:?}", attacker.ships);
+        // println!("Attacker: {:?}", attacker.ships);
         // println!("Defender: {:?}", defender.ships);
         // println!("best_attack_init: {:?}", best_attack_init);
         // println!("best_defend_init: {:?}", best_defend_init);
@@ -602,18 +623,9 @@ mod tests {
             ships: vec![
                 Ship {
                     hull: 2,
-                    initiative: 0,
+                    initiative: 1,
                     shield: 0,
-                    computer: 2,
-                    weapon_1_dmg: 2,
-                    weapon_2_dmg: 0,
-                    ship_type: ShipType::Interceptor,
-                },
-                Ship {
-                    hull: 2,
-                    initiative: 0,
-                    shield: 0,
-                    computer: 2,
+                    computer: 0,
                     weapon_1_dmg: 2,
                     weapon_2_dmg: 0,
                     ship_type: ShipType::Interceptor,
@@ -622,7 +634,7 @@ mod tests {
         };
         let mut defenoder_wins = 0;
         for i in 0..10 {
-            println!("Simulation {}", i);
+            // println!("Simulation {}", i);
             let result = simulate_battle(
                 &mut attacker_fleet.clone(),
                 &mut defender_fleet.clone(),
