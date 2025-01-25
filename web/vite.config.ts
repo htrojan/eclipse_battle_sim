@@ -12,7 +12,7 @@ export default defineConfig({
     plugins: [
         vue(),
         // vueDevTools(),
-        // tailwindcss(),
+        tailwindcss(),
         wasm(),
         topLevelAwait(),
     ],
@@ -27,11 +27,4 @@ export default defineConfig({
             'top-level-await': true,
         }
     },
-    css: {
-        postcss: {
-            plugins: [
-                tailwindcss(),
-            ],
-        },
-    }
 })
