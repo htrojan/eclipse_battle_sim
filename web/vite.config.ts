@@ -17,7 +17,7 @@ export default defineConfig({
         topLevelAwait(),
         tailwindcss(),
     ],
-    // base: '/eclipse_battle_sim/',
+    base: '/eclipse_battle_sim/',
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./src', import.meta.url))
