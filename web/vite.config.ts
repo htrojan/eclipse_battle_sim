@@ -15,14 +15,14 @@ export default defineConfig({
         wasm(),
         topLevelAwait(),
     ],
-    // css: {
-    //   postcss: {
-    //       plugins: [tailwindcss()],
-    //   }
-    // },
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./src', import.meta.url))
         },
     },
+    esbuild: {
+        supported: {
+            'topLevelAwait': true,
+        }
+    }
 })
