@@ -39,11 +39,12 @@ jobs:
         cd web
         npm install
         npm run build-only
+        cd ..
     - name: upload pages artifact
       uses: actions/upload-pages-artifact@v3
       with: 
         name: build_artifact
-        path: dist/
+        path: web/dist/
 
     # Deployment job
   deploy:
