@@ -22,7 +22,7 @@ export default defineConfig({
     },
     esbuild: {
         supported: {
-            'topLevelAwait': true,
+            'top-level-await': true,
         }
     }
 })
