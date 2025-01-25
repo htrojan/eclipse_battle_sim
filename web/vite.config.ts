@@ -2,8 +2,9 @@ import {fileURLToPath, URL} from 'node:url'
 
 import {defineConfig} from 'vite'
 import vue from '@vitejs/plugin-vue'
-import vueDevTools from 'vite-plugin-vue-devtools'
-import tailwindcss from 'tailwindcss'
+// import vueDevTools from 'vite-plugin-vue-devtools'
+// import tailwindcss from 'tailwindcss'
+import tailwindcss from "@tailwindcss/vite";
 import wasm from 'vite-plugin-wasm'
 import topLevelAwait from "vite-plugin-top-level-await";
 
@@ -12,11 +13,11 @@ export default defineConfig({
     plugins: [
         vue(),
         // vueDevTools(),
-        tailwindcss(),
         wasm(),
         topLevelAwait(),
+        tailwindcss(),
     ],
-    base: '/eclipse_battle_sim/',
+    // base: '/eclipse_battle_sim/',
     resolve: {
         alias: {
             '@': fileURLToPath(new URL('./src', import.meta.url))
@@ -27,4 +28,12 @@ export default defineConfig({
             'top-level-await': true,
         }
     },
+    // css: {
+    //     postcss: {
+    //         plugins: [
+    //             tailwindcss(),
+    //             // 'autoprefixer',
+    //         ],
+    //     }
+    // }
 })
