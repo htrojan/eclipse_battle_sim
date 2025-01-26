@@ -6,7 +6,6 @@ import ShipDisplay from "@/components/ShipDisplay.vue";
 import {ref} from "vue";
 
 
-
 interface ShipDescription {
   shipCount: number;
   shipName: string;
@@ -17,11 +16,11 @@ const defender_win_percent = ref(0);
 const simulation_steps = ref(100_000);
 
 const attacker_ships = ref(
-  [
-    {shipCount: 1, shipName: "Dreadnought", ship: new Ship(2, 0, 1, 1, 2, 0, ShipType.Dreadnought)},
-    {shipCount: 0, shipName: "Cruiser", ship: new Ship(2, 0, 1, 1, 2, 0, ShipType.Cruiser)},
-    {shipCount: 0, shipName: "Interceptor", ship: new Ship(2, 0, 1, 1, 2, 0, ShipType.Interceptor)},
-  ]
+    [
+      {shipCount: 1, shipName: "Dreadnought", ship: new Ship(2, 0, 1, 1, 2, 0, ShipType.Dreadnought)},
+      {shipCount: 0, shipName: "Cruiser", ship: new Ship(2, 0, 1, 1, 2, 0, ShipType.Cruiser)},
+      {shipCount: 0, shipName: "Interceptor", ship: new Ship(2, 0, 1, 1, 2, 0, ShipType.Interceptor)},
+    ]
 )
 
 const defender_ships = ref(
@@ -86,22 +85,27 @@ function simulate_battle_js() {
   </header>
   <body>
   <main>
-    <div class="flex flex-row flex-wrap justify-center md:justify-normal">
-      <div class="">
+    <div class="flex flex-col justify-center md:flex-row md:justify-normal ">
+      <div class="flex flex-col items-center">
         <div class="text-center">Attacker</div>
-        <ShipDisplay v-for="(ship_if, index) in attacker_ships" :ship-name="ship_if.shipName" v-model:ship="ship_if.ship" v-model:ship-count="ship_if.shipCount" class="m-2"/>
+        <ShipDisplay v-for="(ship_if, index) in attacker_ships" :ship-name="ship_if.shipName"
+                     v-model:ship="ship_if.ship" v-model:ship-count="ship_if.shipCount" class="m-2"/>
       </div>
-      <div>
+      <div class="flex flex-col items-center">
         <div class="text-center">Defender</div>
-        <ShipDisplay v-for="(ship_if, index) in defender_ships" :ship-name="ship_if.shipName" v-model:ship="ship_if.ship" v-model:ship-count="ship_if.shipCount" class="m-2"/>
+        <ShipDisplay v-for="(ship_if, index) in defender_ships" :ship-name="ship_if.shipName"
+                     v-model:ship="ship_if.ship" v-model:ship-count="ship_if.shipCount" class="m-2"/>
       </div>
-      <div class="flex flex-col justify-center basis-1/3">
-        <div class="w-full">
+      <div class="flex flex-col justify-center basis-48">
+<!--        <div class="w-full">-->
           <div class="text-center">Results</div>
-          <div class="text-center">Defender win: {{defender_win_percent*100}}%</div>
-          <div class="text-center">Attacker win: {{(1 - defender_win_percent) * 100}}%</div>
-          <button @click="simulate_battle_js">Simulate</button>
+          <div class="text-center">Defender win: {{ defender_win_percent * 100 }}%</div>
+          <div class="text-center">Attacker win: {{ (1 - defender_win_percent) * 100 }}%</div>
+        <div class="flex justify-center w-full">
+          <button class="shadow-lg  w-24 text-white bg-gray-800 hover:bg-gray-700" @click="simulate_battle_js" type="button">Simulate</button>
         </div>
+<!--        </div>-->
+
       </div>
     </div>
 
