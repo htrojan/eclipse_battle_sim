@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use rand::{Rng, RngCore};
 use std::collections::VecDeque;
 use itertools::Itertools;
@@ -316,22 +317,25 @@ impl AttackPool {
     }
 
     fn attack_fleet(&self, opposing_fleet: &mut Fleet) {
+        println!("Attacking fleet: {:?}", opposing_fleet);
         let mut ships = opposing_fleet.ships.clone();
         // Sort ships by damage index, highest possible first
         ships.sort_by(|a, b| {
-            a.get_damage_index()
+            let c = a.get_damage_index()
                 .partial_cmp(&b.get_damage_index())
                 // This is well-defined because the damage index is always between 0 and 1
-                .unwrap()
-                .reverse()
+                .unwrap();
+            match c {
+                Ordering::Equal => {
+                    a.hull.cmp(&b.hull)
+                }
+                _ => c.reverse()
+            }
         });
 
-        // let damage_index = ships
-        //     .iter()
-        //     .map(|ship| ship.get_damage_index())
-        //     .collect::<Vec<f32>>();
         let mut hit_graph = HitGraph::new(self.enhanced_rolls.len(), ships.len());
 
+        // Build hit graph
         for i in 0..self.enhanced_rolls.len() {
             ships
                 .iter()
@@ -356,7 +360,7 @@ impl AttackPool {
                 .iter()
                 .enumerate()
                 // The ship is still alive. Ships that are destroyed have a hull of < 0
-                .filter(|(i, _)| ships[*i].hull >= 0)
+                // .filter(|(i, _)| ships[*i].hull >= 0)
                 .filter(|(i, _)| total_damage[*i] > ships[*i].hull as u32)
                 .map(|(i, _)| i)
                 .next();
@@ -370,7 +374,7 @@ impl AttackPool {
                 );
                 hit_graph.deactivate_all_edges_to_ship(ship_index);
                 ships[ship_index].hull = -1;
-                // println!("Destroyed ship: {:?}", ship_index);
+                println!("Destroyed ship: {:?}", ship_index);
                 // println!("New hit graph: {:?}", hit_graph);
             } else {
                 // No ship can be destroyed. The ship with the highest damage index is attacked
@@ -391,7 +395,7 @@ impl AttackPool {
                 let total_damage = hit_graph.get_total_possible_damage_to_ship(ship_index);
 
                 ships[ship_index].hull -= total_damage as i32;
-                // println!("Damaged ship: {:?} with {} damage", ship_index, total_damage);
+                println!("Damaged ship: {:?} with {} damage", ship_index, total_damage);
                 hit_graph.deactivate_all_rolls_attacking(ship_index);
             }
         }
@@ -503,6 +507,7 @@ impl HitGraph {
         // Since the fleet attacking algorithm makes sure, the highest damage ship is destroyed first,
         // this should be the best approach (since the highes damage ships generally have the highest hull value)
         let mut damage_needed: i32 = damage_needed as i32;
+        println!("Needing damage: {:?}", damage_needed);
         while damage_needed > 0 {
             let edge_to_deactivate = self
                 .edges
@@ -522,12 +527,13 @@ impl HitGraph {
                 let from_index = edge_to_deactivate.from;
                 self.deactivate_all_edges_from_attack_roll(from_index);
 
-                break;
+                // break;
             } else {
                 // Error, should not happen since the calling algorithm ensures that the ship can be destroyed
                 panic!("Not enough damage to destroy ship");
             }
         }
+        println!("Used damage: {:?}", damage_needed);
     }
 
     fn get_total_possible_damage_to_ship(&self, ship_index: usize) -> u32 {
@@ -645,5 +651,50 @@ mod tests {
             }
         }
         println!("Result: {:?}", (defenoder_wins as f32) / (1000.0));
+    }
+
+    #[test]
+    pub fn test_hull_effect() {
+        let mut rng = StdRng::seed_from_u64(3);
+        let ship_proto = Ship {
+            hull: 2,
+            initiative: 0,
+            shield: 1,
+            computer: 1,
+            weapon_1_dmg: 2,
+            weapon_2_dmg: 0,
+            ship_type: ShipType::Interceptor,
+        };
+        let ship_proto_def = Ship {
+            hull: 3,
+            initiative: 0,
+            shield: 1,
+            computer: 1,
+            weapon_1_dmg: 2,
+            weapon_2_dmg: 0,
+            ship_type: ShipType::Interceptor,
+        };
+        let attacker_fleet = Fleet {
+            ships: vec![ship_proto.clone(); 5]
+        };
+        let defender_fleet = Fleet {
+            ships: vec![ship_proto_def.clone(); 5]
+        };
+
+        let mut defender_wins = 0;
+        let n = 1;
+        for i in 0..n {
+            // println!("Simulation {}", i);
+            let result = simulate_battle(
+                &mut attacker_fleet.clone(),
+                &mut defender_fleet.clone(),
+                &mut rng,
+            );
+            if result == BattleResult::DefenderWins {
+                defender_wins += 1;
+            }
+        }
+        println!("Result: {:?}", (defender_wins as f32) / (n as f32));
+
     }
 }
