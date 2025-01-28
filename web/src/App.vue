@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import HelloWorld from './components/HelloWorld.vue'
-import TheWelcome from './components/TheWelcome.vue'
 import {BattleResult, Fleet, RngState, Ship, ShipType, simulate_battle} from '../../simulator/pkg'
 import ShipDisplay from "@/components/ShipDisplay.vue";
 import {ref} from "vue";
