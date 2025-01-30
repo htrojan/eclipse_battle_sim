@@ -12,6 +12,7 @@ interface ShipDescription {
 
 const defender_win_percent = ref(0);
 const simulation_steps = ref(100_000);
+const calculating = ref(false);
 
 const attacker_ships = ref(
     [
@@ -58,26 +59,19 @@ function simulate_battle_js() {
   });
   worker.onmessage = (event) => {
     console.log("Received message from worker", event.data);
-    defender_win_percent.value = event.data.defender_win_percent;
+    defender_win_percent.value = event.data.defender_win_percent.toFixed(3);
+    calculating.value = false;
   }
   console.log("Sending message to worker");
+  calculating.value = true;
   worker.postMessage({
     attacker_fleet: attacker_fleet.to_json(),
     defender_fleet: defender_fleet.to_json(),
     simulation_steps: simulation_steps.value,
-    seed: 42
+    rng_seed: 42
   });
 }
 
-
-// console.log("simulating with attacker", attacker, "defender", defender);
-//   let result = simulate_battle(attacker, defender, rng_state);
-//   // console.log(i, result);
-//   if (result === BattleResult.DefenderWins ){
-//     defender_wins += 1;
-//   }
-// }
-// console.log(defender_wins);
 </script>
 
 <template>
@@ -104,6 +98,8 @@ function simulate_battle_js() {
           <button class="shadow-lg  w-24 text-white bg-gray-800 hover:bg-gray-700" @click="simulate_battle_js"
                   type="button">Simulate
           </button>
+          <div class="w-5 h-5 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" v-if="calculating"></div>
+
         </div>
       </div>
     </div>
