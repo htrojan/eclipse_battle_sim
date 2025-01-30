@@ -31,10 +31,8 @@ const defender_ships = ref(
 
 function simulate_battle_js() {
   console.log("Simulating battle");
-  let defender_wins: number = 0;
-  let n: number = simulation_steps.value;
-  // Always use the same seed for the RNG so that the results are reproducible
   let rng_state = new RngState(BigInt(42));
+  // Always use the same seed for the RNG so that the results are reproducible
   let attacker: Ship[] = [];
   let defender: Ship[] = [];
   for (let ship of attacker_ships.value) {
@@ -53,18 +51,22 @@ function simulate_battle_js() {
   let defender_fleet = new Fleet(defender);
   console.log("Attacker fleet: ", attacker_fleet);
   console.log("Defender fleet: ", defender_fleet);
-  for (let i = 0; i < n; i++) {
-    let new_fleet = attacker_fleet.clone();
-    let new_defender_fleet = defender_fleet.clone();
-    let result = simulate_battle(new_fleet, new_defender_fleet, rng_state);
-    if (result === BattleResult.DefenderWins) {
-      defender_wins += 1;
-    }
-    new_fleet.free();
-    new_defender_fleet.free();
+  // Spawn a simulationWorker.ts webworker to run the simulation
+
+  let worker = new Worker(new URL("./simulationWorker.ts", import.meta.url), {
+    type: "module",
+  });
+  worker.onmessage = (event) => {
+    console.log("Received message from worker", event.data);
+    defender_win_percent.value = event.data.defender_win_percent;
   }
-  defender_win_percent.value = defender_wins / n;
-  console.log("Defender wins: ", defender_wins);
+  console.log("Sending message to worker");
+  worker.postMessage({
+    attacker_fleet: attacker_fleet.to_json(),
+    defender_fleet: defender_fleet.to_json(),
+    simulation_steps: simulation_steps.value,
+    seed: 42
+  });
 }
 
 
@@ -95,11 +97,13 @@ function simulate_battle_js() {
                      v-model:ship="ship_if.ship" v-model:ship-count="ship_if.shipCount" class="m-2"/>
       </div>
       <div class="flex flex-col justify-center basis-48">
-          <div class="text-center">Results</div>
-          <div class="text-center">Defender win: {{ defender_win_percent * 100 }}%</div>
-          <div class="text-center">Attacker win: {{ (1 - defender_win_percent) * 100 }}%</div>
+        <div class="text-center">Results</div>
+        <div class="text-center">Defender win: {{ defender_win_percent * 100 }}%</div>
+        <div class="text-center">Attacker win: {{ (1 - defender_win_percent) * 100 }}%</div>
         <div class="flex justify-center w-full">
-          <button class="shadow-lg  w-24 text-white bg-gray-800 hover:bg-gray-700" @click="simulate_battle_js" type="button">Simulate</button>
+          <button class="shadow-lg  w-24 text-white bg-gray-800 hover:bg-gray-700" @click="simulate_battle_js"
+                  type="button">Simulate
+          </button>
         </div>
       </div>
     </div>

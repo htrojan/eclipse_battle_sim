@@ -28,12 +28,10 @@ export default defineConfig({
             'top-level-await': true,
         }
     },
-    // css: {
-    //     postcss: {
-    //         plugins: [
-    //             tailwindcss(),
-    //             // 'autoprefixer',
-    //         ],
-    //     }
-    // }
+    worker: {
+        plugins: () => {
+            return [wasm(), topLevelAwait()]
+        },
+
+    }
 })
