@@ -654,9 +654,9 @@ mod tests {
 
     #[test]
     pub fn test2() {
-        env_logger::builder()
-            .filter_level(log::LevelFilter::Info)
-            .init();
+        // env_logger::builder()
+        //     .filter_level(log::LevelFilter::Info)
+        //     .init();
         let mut rng = StdRng::seed_from_u64(0);
         let attacker_fleet = Fleet {
             ships: vec![
