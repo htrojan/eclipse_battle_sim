@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {BattleResult, Fleet, RngState, Ship, ShipType, simulate_battle} from '../../simulator/pkg'
+import {BattleResult, Fleet, RngState, Ship, ShipType, simulate_battle} from "simulator"
 import ShipDisplay from "@/components/ShipDisplay.vue";
 import {ref} from "vue";
 
@@ -59,7 +59,7 @@ function simulate_battle_js() {
   });
   worker.onmessage = (event) => {
     console.log("Received message from worker", event.data);
-    defender_win_percent.value = event.data.defender_win_percent.toFixed(3);
+    defender_win_percent.value = event.data.defender_win_percent;
     calculating.value = false;
   }
   console.log("Sending message to worker");
@@ -92,8 +92,8 @@ function simulate_battle_js() {
       </div>
       <div class="flex flex-col justify-center basis-48">
         <div class="text-center">Results</div>
-        <div class="text-center">Defender win: {{ defender_win_percent * 100 }}%</div>
-        <div class="text-center">Attacker win: {{ (1 - defender_win_percent) * 100 }}%</div>
+        <div class="text-center">Defender win: {{ (defender_win_percent * 100).toPrecision(2) }}%</div>
+        <div class="text-center">Attacker win: {{ ((1 - defender_win_percent) * 100).toPrecision(2) }}%</div>
         <div class="flex justify-center w-full">
           <button class="shadow-lg  w-24 text-white bg-gray-800 hover:bg-gray-700" @click="simulate_battle_js"
                   type="button">Simulate

@@ -1,7 +1,7 @@
 
 self.onmessage = (e: MessageEvent) => {
-    import("../../simulator/pkg").then((module) => {
-        const {BattleResult, Fleet, RngState, simulate_battle} = module;
+    import("simulator").then((wasm) => {
+        const {BattleResult, Fleet, RngState, simulate_battle} = wasm;
         let rng_state = new RngState(BigInt(e.data.rng_seed));
         const attacker_fleet = Fleet.from_json(e.data.attacker_fleet);
         const defender_fleet = Fleet.from_json(e.data.defender_fleet);
