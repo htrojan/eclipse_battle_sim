@@ -56,7 +56,6 @@ impl Ship {
             ship_type,
         }
     }
-
 }
 
 #[wasm_bindgen]
@@ -84,11 +83,13 @@ pub struct Fleet {
 
 #[wasm_bindgen]
 impl Fleet {
-
     #[wasm_bindgen(constructor)]
     pub fn new(ships: Vec<Ship>) -> Fleet {
+        // Sort ships by initiative at creation time.
         Fleet {
-            ships
+            ships: ships.into_iter().sorted_by(
+                |a, b| a.initiative.cmp(&b.initiative).reverse()
+            ).collect()
         }
     }
 
@@ -109,25 +110,43 @@ impl Fleet {
     pub fn has_ships_left(&self) -> bool {
         self.ships.iter().any(|ship| ship.hull >= 0)
     }
+
+    pub fn num_ships(&self) -> usize {
+        self.ships.iter().filter(|ship| ship.hull >= 0).count()
+    }
     /// Returns the attack order of the ships in the fleet
     /// The attack order is determined by the initiative of the ships
     /// The format is (index_in_fleet, initiative)
     /// The index is a usize corresponding to the index the ship is stored in the ship vector
-    fn get_attack_order(&self) -> VecDeque<InitiativeIndex> {
-        let mut ships = self.ships.clone();
+    #[inline]
+    fn get_attack_order_max_init(&self, min_init: i32) -> impl Iterator<Item=InitiativeIndex> + use < '_ > {
         // Sort so that the highest initiative is first
-        ships.sort_by(|a, b| a.initiative.cmp(&b.initiative).reverse());
-        let ships: VecDeque<_> = ships
+        let ships = self.ships
+            .iter()
+            .enumerate()
+            .filter(|(_, x)| x.hull >= 0)
+            .filter(move |(_, x)| x.initiative <= min_init as i32)
+            .map(|(index, x)| InitiativeIndex {
+                index,
+                initiative: x.initiative,
+            });
+        // .collect();
+
+        ships
+    }
+
+    fn get_attack_order(&self) -> impl Iterator<Item=InitiativeIndex> + use < '_ > {
+        // Sort so that the highest initiative is first
+        let ships = self.ships
             .iter()
             .enumerate()
             .filter(|(_, x)| x.hull >= 0)
             .map(|(index, x)| InitiativeIndex {
                 index,
                 initiative: x.initiative,
-            })
-            .collect();
+            });
+        // .collect();
 
-        // println!("{:?}", ships);
         ships
     }
 
@@ -191,16 +210,24 @@ pub fn simulate_battle<T: RngCore + Clone>(
 }
 
 pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut Fleet, rng: &mut T) {
+    info!("New Simulation round: \n");
     if !attacker.has_ships_left() || !defender.has_ships_left() {
         return;
     }
+    // let mut attacker_clone = attacker.clone();
+    // let mut defender_clone = defender.clone();
+
     //determine attack order
-    let mut attacker_order = attacker.get_attack_order();
-    let mut defender_order = defender.get_attack_order();
+    // let mut attacker_order = attacker_clone.get_attack_order().peekable();
+    // let mut defender_order = defender_clone.get_attack_order().peekable();
 
     // The unwrapped values are safe, since the checks above ensure that there are ships left
-    let mut best_attack_init = attacker_order.front().unwrap().initiative;
-    let mut best_defend_init = defender_order.front().unwrap().initiative;
+    // let mut best_attack_init = attacker_order.peek().unwrap().initiative;
+    // let mut best_defend_init = defender_order.peek().unwrap().initiative;
+
+    let (mut best_attack_init, mut best_defend_init) = {
+        (attacker.get_attack_order().next().unwrap().initiative, defender.get_attack_order().next().unwrap().initiative)
+    };
 
     // Attack while there are ships left in both fleets and at least one opponent has ships that have not attacked yet
     // If an opponent has no ships left, his best_init value is set to -1
@@ -208,11 +235,7 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
         && defender.has_ships_left()
         && (best_attack_init >= 0 || best_defend_init >= 0)
     {
-        // println!("Attacker: {:?}", attacker.ships);
-        // println!("Defender: {:?}", defender.ships);
-        // println!("best_attack_init: {:?}", best_attack_init);
-        // println!("best_defend_init: {:?}", best_defend_init);
-
+        info!("New InitRound: Best attack init: {:?}, best defend init: {:?}", best_attack_init, best_defend_init);
         // Compare who has the highest initiative. In case of a draw, the defender (option two) attacks first
 
         // If the attacker has greater initiative, the attacker attacks first,
@@ -220,48 +243,58 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
         if best_attack_init > best_defend_init {
             // println!("Attacker attacks");
             // Build a pool of all ships that attack at the same time
-            let mut pool = AttackPool::new();
-            while attacker_order.front().is_some()
-                && attacker_order.front().unwrap().initiative > best_defend_init
+
+            let mut attacker_order = attacker.get_attack_order_max_init(best_attack_init).peekable();
+            info!("Attacker attacker with init: {:?}", attacker_order.peek());
+            let mut pool = AttackPool::new(attacker.num_ships());
+            while attacker_order.peek().is_some()
+                && attacker_order.peek().unwrap().initiative > best_defend_init
             {
                 pool.add_ship(
-                    attacker.ships[attacker_order.pop_front().unwrap().index].clone(),
+                    attacker.ships[attacker_order.next().unwrap().index].clone(),
                     rng,
                 );
             }
-            best_attack_init = match attacker_order.front() {
+            best_attack_init = match attacker_order.peek() {
                 Some(x) => x.initiative,
                 // Temp value, since the attacker has no ships left.
                 // The loop will be terminated next iteration and this value will  never be used
                 None => -1,
             };
 
-            // println!("Attacker pool: {:?}", pool);
-            pool.attack_fleet(defender);
-            // println!("New defender fleet: {:?}", defender);
+
             // update defender attack order, since ships have been destroyed
-            defender_order = defender.get_attack_order();
-            // println!("New defender order: {:?}", defender_order);
+
+            // defender_order = defender.get_attack_order().peekable();
+
+            pool.attack_fleet(defender);
+            // defender_clone = defender.clone();
+            // defender_order = defender_clone.get_attack_order().peekable();
 
             // Remove all ships from the defender that have already attacked
-            while defender_order.front().is_some()
-                && defender_order.front().unwrap().initiative > best_defend_init
-            {
-                defender_order.pop_front();
-            }
+            // while defender_order.peek().is_some()
+            //     && defender_order.peek().unwrap().initiative > best_defend_init
+            // {
+            //     defender_order.next();
+            // }
         } else {
             // println!("Defender attacks");
             // The defender attacks first
-            let mut pool = AttackPool::new();
-            while defender_order.front().is_some()
-                && defender_order.front().unwrap().initiative >= best_attack_init
+            let mut pool = AttackPool::new(defender.num_ships());
+
+            // Peek forward to the ship with the correct initiative
+            let mut defender_order = defender.get_attack_order_max_init(best_defend_init).peekable();
+            info!("Defender attacker with init: {:?}", defender_order.peek());
+
+            while defender_order.peek().is_some()
+                && defender_order.peek().unwrap().initiative >= best_attack_init
             {
                 pool.add_ship(
-                    defender.ships[defender_order.pop_front().unwrap().index].clone(),
+                    defender.ships[defender_order.next().unwrap().index].clone(),
                     rng,
                 );
             }
-            best_defend_init = match defender_order.front() {
+            best_defend_init = match defender_order.peek() {
                 Some(x) => x.initiative,
                 // Temp value, since the defender has no ships left.
                 // The loop will be terminated next iteration and this value will  never be used
@@ -274,15 +307,15 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
             pool.attack_fleet(attacker);
             // println!("New attacker fleet: {:?}", attacker);
             // update attacker attack order, since ships have been destroyed
-            attacker_order = attacker.get_attack_order();
+            // attacker_order = attacker.get_attack_order().peekable();
             // println!("New attacker order: {:?}", attacker_order);
 
             // Remove all ships from the attacker that have already attacked
-            while attacker_order.front().is_some()
-                && attacker_order.front().unwrap().initiative > best_attack_init
-            {
-                attacker_order.pop_front();
-            }
+            // while attacker_order.peek().is_some()
+            //     && attacker_order.peek().unwrap().initiative > best_attack_init
+            // {
+            //     attacker_order.next();
+            // }
             // println!("New adapted attacker order: {:?}", attacker_order);
         }
     }
@@ -302,9 +335,12 @@ struct AttackRoll {
 }
 
 impl AttackPool {
-    fn new() -> AttackPool {
+    /// Takes the number of ships that generate the attacks
+    /// in order to preallocate the necessary space for the attack rolls
+    fn new(num_ships: usize) -> AttackPool {
         AttackPool {
-            enhanced_rolls: Vec::new(),
+            // Each ship has two weapons, so the number of attack rolls is twice the number of ships
+            enhanced_rolls: Vec::with_capacity(num_ships * 2),
         }
     }
 
@@ -336,7 +372,7 @@ impl AttackPool {
     }
 
     fn attack_fleet(&self, opposing_fleet: &mut Fleet) {
-        info!("Attacking fleet: {:?}", opposing_fleet);
+        // info!("Attacking fleet: {:?}", opposing_fleet);
         let mut ships = opposing_fleet.ships.clone();
         // Sort ships by damage index, highest possible first
         ships.sort_by(|a, b| {
@@ -447,7 +483,8 @@ impl HitGraph {
 
     fn new(num_attack_rolls: usize, num_ships: usize) -> HitGraph {
         HitGraph {
-            edges: Vec::new(),
+            // Just a estimate based on nothing, still decreases total allocation time.
+            edges: Vec::with_capacity(num_attack_rolls * 3),
             num_attack_rolls,
             num_ships,
         }
@@ -617,6 +654,9 @@ mod tests {
 
     #[test]
     pub fn test2() {
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Info)
+            .init();
         let mut rng = StdRng::seed_from_u64(0);
         let attacker_fleet = Fleet {
             ships: vec![
@@ -712,6 +752,5 @@ mod tests {
             }
         }
         info!("Result: {:?}", (defender_wins as f32) / (n as f32));
-
     }
 }

@@ -14,7 +14,7 @@ const defender_win_percent = ref(0);
 const simulation_steps = ref(100_000);
 const calculating = ref(false);
 
-const attacker_ships = ref(
+const attacker_ships = ref<ShipDescription[]>(
     [
       {shipCount: 1, shipName: "Dreadnought", ship: new Ship(2, 0, 1, 1, 2, 0, ShipType.Dreadnought)},
       {shipCount: 0, shipName: "Cruiser", ship: new Ship(2, 0, 1, 1, 2, 0, ShipType.Cruiser)},
@@ -22,7 +22,7 @@ const attacker_ships = ref(
     ]
 )
 
-const defender_ships = ref(
+const defender_ships = ref<ShipDescription[]>(
     [
       {shipCount: 1, shipName: "Dreadnought", ship: new Ship(2, 0, 1, 1, 2, 0, ShipType.Dreadnought)},
       {shipCount: 0, shipName: "Cruiser", ship: new Ship(2, 0, 1, 1, 2, 0, ShipType.Cruiser)},
