@@ -1,6 +1,9 @@
 use eclipse_sim::{BattleResult, Fleet, Ship, ShipType};
 
 fn main() {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .init();
     let mut rng = rand::thread_rng();
     let defender_fleet = Fleet::new (vec![
         Ship {

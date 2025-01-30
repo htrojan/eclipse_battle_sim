@@ -2,10 +2,21 @@ use std::cmp::Ordering;
 use rand::{Rng, RngCore};
 use std::collections::VecDeque;
 use itertools::Itertools;
+use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 
+#[cfg(debug_assertions)]
+macro_rules! info {
+    ($($arg: tt)*) => { log::info!($($arg)*) }
+}
+
+#[cfg(not(debug_assertions))]
+macro_rules! info {
+    ($($arg: tt)*) => { }
+}
+
 #[wasm_bindgen]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Ship {
     pub hull: i32,
     pub initiative: i32,
@@ -49,7 +60,7 @@ impl Ship {
 }
 
 #[wasm_bindgen]
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
 pub enum ShipType {
     Interceptor,
     Cruiser,
@@ -66,7 +77,7 @@ impl Ship {
 /// A fleet is a collection of ships
 /// The ships are sorted by initiative
 #[wasm_bindgen]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Fleet {
     ships: Vec<Ship>,
 }
@@ -85,6 +96,14 @@ impl Fleet {
         Fleet {
             ships: self.ships.clone()
         }
+    }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
+
+    pub fn from_json(json: &str) -> Fleet {
+        serde_json::from_str(json).unwrap()
     }
 
     pub fn has_ships_left(&self) -> bool {
@@ -317,7 +336,7 @@ impl AttackPool {
     }
 
     fn attack_fleet(&self, opposing_fleet: &mut Fleet) {
-        println!("Attacking fleet: {:?}", opposing_fleet);
+        info!("Attacking fleet: {:?}", opposing_fleet);
         let mut ships = opposing_fleet.ships.clone();
         // Sort ships by damage index, highest possible first
         ships.sort_by(|a, b| {
@@ -374,7 +393,7 @@ impl AttackPool {
                 );
                 hit_graph.deactivate_all_edges_to_ship(ship_index);
                 ships[ship_index].hull = -1;
-                println!("Destroyed ship: {:?}", ship_index);
+                info!("Destroyed ship: {:?}", ship_index);
                 // println!("New hit graph: {:?}", hit_graph);
             } else {
                 // No ship can be destroyed. The ship with the highest damage index is attacked
@@ -395,7 +414,7 @@ impl AttackPool {
                 let total_damage = hit_graph.get_total_possible_damage_to_ship(ship_index);
 
                 ships[ship_index].hull -= total_damage as i32;
-                println!("Damaged ship: {:?} with {} damage", ship_index, total_damage);
+                info!("Damaged ship: {:?} with {} damage", ship_index, total_damage);
                 hit_graph.deactivate_all_rolls_attacking(ship_index);
             }
         }
@@ -469,9 +488,6 @@ impl HitGraph {
                 edge.active = false;
             }
         }
-        // for edge in self.edges.iter_mut().filter(|edge| edge.to == ship_index) {
-        //     edge.active = false;
-        // }
     }
 
     fn deactivate_all_edges_from_attack_roll(&mut self, index: usize) {
@@ -493,7 +509,6 @@ impl HitGraph {
         if total_damage < damage_needed {
             // Error, should not happen!
             panic!("Not enough damage to destroy ship");
-            return;
         }
         if total_damage == damage_needed {
             // println!("Exactly enough damage to destroy ship. Deactivate all edges to {:?}", ship_index);
@@ -507,7 +522,7 @@ impl HitGraph {
         // Since the fleet attacking algorithm makes sure, the highest damage ship is destroyed first,
         // this should be the best approach (since the highes damage ships generally have the highest hull value)
         let mut damage_needed: i32 = damage_needed as i32;
-        println!("Needing damage: {:?}", damage_needed);
+        info!("Needing damage: {:?}", damage_needed);
         while damage_needed > 0 {
             let edge_to_deactivate = self
                 .edges
@@ -533,7 +548,7 @@ impl HitGraph {
                 panic!("Not enough damage to destroy ship");
             }
         }
-        println!("Used damage: {:?}", damage_needed);
+        info!("Used damage: {:?}", damage_needed);
     }
 
     fn get_total_possible_damage_to_ship(&self, ship_index: usize) -> u32 {
@@ -561,6 +576,7 @@ struct HitEdge {
 mod tests {
     use rand::prelude::StdRng;
     use rand::SeedableRng;
+    use crate::init_log;
     use crate::simulator::{simulate_battle, simulate_round, BattleResult, Fleet, Ship, ShipType};
 
     #[test]
@@ -638,7 +654,7 @@ mod tests {
                 },
             ],
         };
-        let mut defenoder_wins = 0;
+        let mut defender_wins = 0;
         for i in 0..10 {
             // println!("Simulation {}", i);
             let result = simulate_battle(
@@ -647,14 +663,15 @@ mod tests {
                 &mut rng,
             );
             if result == BattleResult::DefenderWins {
-                defenoder_wins += 1;
+                defender_wins += 1;
             }
         }
-        println!("Result: {:?}", (defenoder_wins as f32) / (1000.0));
+        info!("Result: {:?}", (defender_wins as f32) / (1000.0));
     }
 
     #[test]
     pub fn test_hull_effect() {
+        init_log();
         let mut rng = StdRng::seed_from_u64(3);
         let ship_proto = Ship {
             hull: 2,
@@ -694,7 +711,7 @@ mod tests {
                 defender_wins += 1;
             }
         }
-        println!("Result: {:?}", (defender_wins as f32) / (n as f32));
+        info!("Result: {:?}", (defender_wins as f32) / (n as f32));
 
     }
 }
