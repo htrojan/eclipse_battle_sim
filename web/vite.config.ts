@@ -32,6 +32,10 @@ export default defineConfig({
         plugins: () => {
             return [wasm(), topLevelAwait()]
         },
-
+        rollupOptions: {
+          output: {
+            inlineDynamicImports: true,
+          },
+        },
     }
 })

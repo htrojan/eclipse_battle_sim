@@ -1,4 +1,3 @@
-// import {BattleResult, Fleet, RngState, simulate_battle} from "../../simulator/pkg";
 
 self.onmessage = (e: MessageEvent) => {
     import("../../simulator/pkg").then((module) => {
