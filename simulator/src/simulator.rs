@@ -130,7 +130,6 @@ impl Fleet {
                 index,
                 initiative: x.initiative,
             });
-        // .collect();
 
         ships
     }
@@ -145,7 +144,6 @@ impl Fleet {
                 index,
                 initiative: x.initiative,
             });
-        // .collect();
 
         ships
     }
@@ -214,17 +212,6 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
     if !attacker.has_ships_left() || !defender.has_ships_left() {
         return;
     }
-    // let mut attacker_clone = attacker.clone();
-    // let mut defender_clone = defender.clone();
-
-    //determine attack order
-    // let mut attacker_order = attacker_clone.get_attack_order().peekable();
-    // let mut defender_order = defender_clone.get_attack_order().peekable();
-
-    // The unwrapped values are safe, since the checks above ensure that there are ships left
-    // let mut best_attack_init = attacker_order.peek().unwrap().initiative;
-    // let mut best_defend_init = defender_order.peek().unwrap().initiative;
-
     let (mut best_attack_init, mut best_defend_init) = {
         (attacker.get_attack_order().next().unwrap().initiative, defender.get_attack_order().next().unwrap().initiative)
     };
@@ -241,7 +228,6 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
         // If the attacker has greater initiative, the attacker attacks first,
         // otherwise (so if draw), the defender attacks first
         if best_attack_init > best_defend_init {
-            // println!("Attacker attacks");
             // Build a pool of all ships that attack at the same time
 
             let mut attacker_order = attacker.get_attack_order_max_init(best_attack_init).peekable();
@@ -262,23 +248,8 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
                 None => -1,
             };
 
-
-            // update defender attack order, since ships have been destroyed
-
-            // defender_order = defender.get_attack_order().peekable();
-
             pool.attack_fleet(defender);
-            // defender_clone = defender.clone();
-            // defender_order = defender_clone.get_attack_order().peekable();
-
-            // Remove all ships from the defender that have already attacked
-            // while defender_order.peek().is_some()
-            //     && defender_order.peek().unwrap().initiative > best_defend_init
-            // {
-            //     defender_order.next();
-            // }
         } else {
-            // println!("Defender attacks");
             // The defender attacks first
             let mut pool = AttackPool::new(defender.num_ships());
 
@@ -301,22 +272,7 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
                 None => -1,
             };
 
-            // println!("Defender pool: {:?}", pool);
-
-            // println!("Defender pool: {:?}", pool);
             pool.attack_fleet(attacker);
-            // println!("New attacker fleet: {:?}", attacker);
-            // update attacker attack order, since ships have been destroyed
-            // attacker_order = attacker.get_attack_order().peekable();
-            // println!("New attacker order: {:?}", attacker_order);
-
-            // Remove all ships from the attacker that have already attacked
-            // while attacker_order.peek().is_some()
-            //     && attacker_order.peek().unwrap().initiative > best_attack_init
-            // {
-            //     attacker_order.next();
-            // }
-            // println!("New adapted attacker order: {:?}", attacker_order);
         }
     }
 }
