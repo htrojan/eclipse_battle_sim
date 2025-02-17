@@ -1,7 +1,6 @@
+import { BattleResult, Fleet, RngState, simulate_battle } from "simulator";
 
 self.onmessage = (e: MessageEvent) => {
-    import("simulator").then((wasm) => {
-        const {BattleResult, Fleet, RngState, simulate_battle} = wasm;
         let rng_state = new RngState(BigInt(e.data.rng_seed));
         const attacker_fleet = Fleet.from_json(e.data.attacker_fleet);
         const defender_fleet = Fleet.from_json(e.data.defender_fleet);
@@ -23,7 +22,6 @@ self.onmessage = (e: MessageEvent) => {
         console.log("Win percent: ", win_percent);
 
         self.postMessage({defender_win_percent: win_percent});
-    })
 }
 
-// export {};
+export {};
