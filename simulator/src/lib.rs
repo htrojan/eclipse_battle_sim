@@ -8,7 +8,7 @@ mod simulator;
 pub use simulator::{BattleResult, Fleet, Ship, ShipType};
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use simulator::{simulate_battle, simulate_round};
+pub use simulator::{simulate_battle, simulate_round, simulate_battle_bump};
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "console_log")] {

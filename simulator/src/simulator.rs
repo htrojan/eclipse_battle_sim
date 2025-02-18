@@ -1,7 +1,8 @@
 use std::cmp::Ordering;
+use bumpalo::Bump;
 use rand::{Rng, RngCore};
-use std::collections::VecDeque;
 use itertools::Itertools;
+use bumpalo::collections::Vec as BumpVec;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::wasm_bindgen;
 
@@ -73,23 +74,47 @@ impl Ship {
     }
 }
 
-/// A fleet is a collection of ships
-/// The ships are sorted by initiative
 #[wasm_bindgen]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Fleet {
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WasmFleet{
     ships: Vec<Ship>,
 }
 
 #[wasm_bindgen]
-impl Fleet {
+impl WasmFleet {
     #[wasm_bindgen(constructor)]
-    pub fn new(ships: Vec<Ship>) -> Fleet {
+    pub fn new(ships: Vec<Ship>) -> WasmFleet {
         // Sort ships by initiative at creation time.
-        Fleet {
+        WasmFleet {
             ships: ships.into_iter().sorted_by(
                 |a, b| a.initiative.cmp(&b.initiative).reverse()
             ).collect()
+        }
+    }
+    
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(&self).unwrap()
+    }
+
+    pub fn from_json(json: &str) -> WasmFleet {
+        serde_json::from_str(json).unwrap()
+    }
+}
+
+/// A fleet is a collection of ships
+/// The ships are sorted by initiative
+#[derive(Debug, Clone)]
+pub struct Fleet<'a> {
+    ships: BumpVec<'a, Ship>,
+}
+
+impl<'a> Fleet<'a> {
+    pub fn new<T: IntoIterator<Item=Ship>>(ships: T, bump: &'a Bump) -> Fleet<'a> {
+        // Sort ships by initiative at creation time.
+        let mut ships = BumpVec::from_iter_in(ships, bump);
+        ships.sort_by(|a, b| a.initiative.cmp(&b.initiative).reverse());
+        Fleet {
+            ships
         }
     }
 
@@ -99,13 +124,6 @@ impl Fleet {
         }
     }
 
-    pub fn to_json(&self) -> String {
-        serde_json::to_string(&self).unwrap()
-    }
-
-    pub fn from_json(json: &str) -> Fleet {
-        serde_json::from_str(json).unwrap()
-    }
 
     pub fn has_ships_left(&self) -> bool {
         self.ships.iter().any(|ship| ship.hull >= 0)
@@ -148,23 +166,6 @@ impl Fleet {
         ships
     }
 
-    fn get_average_damage(&self) -> Vec<AverageDamageIndex> {
-        let ships: Vec<_> = self
-            .ships
-            .iter()
-            .enumerate()
-            .filter(|(_, x)| x.hull >= 0)
-            .map(|(index, x)| AverageDamageIndex {
-                index,
-                // Each computer value increases the dice sites that lead to a hit by onex1. {}
-                // For no computer, just 1 in 6 dice sites lead to a hitx1.
-                // The cap is when all sites are hits, so 1.
-                damage: x.get_damage_index(),
-            })
-            .collect();
-
-        ships
-    }
 }
 
 /// A struct to store the index of a ship in a fleet and its initiative
@@ -188,14 +189,26 @@ pub enum BattleResult {
     Draw,
 }
 
+
 pub fn simulate_battle<T: RngCore + Clone>(
     attacker: &mut Fleet,
     defender: &mut Fleet,
     rng: &mut T,
 ) -> BattleResult {
+    let bump = Bump::new();
+    simulate_battle_bump(attacker, defender, rng, &bump)
+}
+
+pub fn simulate_battle_bump<T: RngCore + Clone>(
+    attacker: &mut Fleet,
+    defender: &mut Fleet,
+    rng: &mut T,
+    bump: &Bump
+) -> BattleResult {
+    // let bump = Bump::new();
     // let mut rng = rand::thread_rng();
     while attacker.has_ships_left() && defender.has_ships_left() {
-        simulate_round(attacker, defender, rng);
+        simulate_round_bump(attacker, defender, rng, &bump);
     }
     if !attacker.has_ships_left() && !defender.has_ships_left() {
         //todo: This should not happen, since the loop should terminate once one player does not have any ships left. Implement better error handling
@@ -207,8 +220,16 @@ pub fn simulate_battle<T: RngCore + Clone>(
     }
 }
 
+
 pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut Fleet, rng: &mut T) {
+    let bump = Bump::new();
+    simulate_round_bump(attacker, defender, rng, &bump);
+}
+
+pub fn simulate_round_bump<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut Fleet, rng: &mut T, bump: &Bump) {
     info!("New Simulation round: \n");
+    // let bump = bumpalo::Bump::new();
+
     if !attacker.has_ships_left() || !defender.has_ships_left() {
         return;
     }
@@ -232,7 +253,7 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
 
             let mut attacker_order = attacker.get_attack_order_max_init(best_attack_init).peekable();
             info!("Attacker attacker with init: {:?}", attacker_order.peek());
-            let mut pool = AttackPool::new(attacker.num_ships());
+            let mut pool = AttackPool::new_in(&bump);
             while attacker_order.peek().is_some()
                 && attacker_order.peek().unwrap().initiative > best_defend_init
             {
@@ -248,10 +269,10 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
                 None => -1,
             };
 
-            pool.attack_fleet(defender);
+            pool.attack_fleet(defender, bump);
         } else {
             // The defender attacks first
-            let mut pool = AttackPool::new(defender.num_ships());
+            let mut pool = AttackPool::new_in(&bump);
 
             // Peek forward to the ship with the correct initiative
             let mut defender_order = defender.get_attack_order_max_init(best_defend_init).peekable();
@@ -272,16 +293,16 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
                 None => -1,
             };
 
-            pool.attack_fleet(attacker);
+            pool.attack_fleet(attacker, &bump);
         }
     }
 }
 
 /// Describes the amount of attacks from ships that happen at the same time
 #[derive(Debug)]
-struct AttackPool {
+struct AttackPool<'a> {
     /// The attack rolls of each ship in the pool, enhanced by the ships computer stat
-    enhanced_rolls: Vec<AttackRoll>,
+    enhanced_rolls: BumpVec<'a, AttackRoll>,
 }
 
 #[derive(Debug)]
@@ -290,13 +311,13 @@ struct AttackRoll {
     hit_dc: i32,
 }
 
-impl AttackPool {
+impl<'a> AttackPool<'a> {
     /// Takes the number of ships that generate the attacks
     /// in order to preallocate the necessary space for the attack rolls
-    fn new(num_ships: usize) -> AttackPool {
+    fn new_in(bump: &'a Bump) -> AttackPool<'a> {
         AttackPool {
             // Each ship has two weapons, so the number of attack rolls is twice the number of ships
-            enhanced_rolls: Vec::with_capacity(num_ships * 2),
+            enhanced_rolls: BumpVec::new_in(bump)
         }
     }
 
@@ -326,12 +347,8 @@ impl AttackPool {
             });
         }
     }
-
-    fn attack_fleet(&self, opposing_fleet: &mut Fleet) {
-        // info!("Attacking fleet: {:?}", opposing_fleet);
-        let mut ships = opposing_fleet.ships.clone();
-        // Sort ships by damage index, highest possible first
-        ships.sort_by(|a, b| {
+    
+    fn compare_ship_damage(a: &Ship, b: &Ship) -> Ordering {
             let c = a.get_damage_index()
                 .partial_cmp(&b.get_damage_index())
                 // This is well-defined because the damage index is always between 0 and 1
@@ -342,13 +359,16 @@ impl AttackPool {
                 }
                 _ => c.reverse()
             }
-        });
+    }
 
-        let mut hit_graph = HitGraph::new(self.enhanced_rolls.len(), ships.len());
+    fn attack_fleet(&self, fleet: &mut Fleet, bump: &Bump) {
+        // info!("Attacking fleet: {:?}", opposing_fleet);
+
+        let mut hit_graph = HitGraph::new(self.enhanced_rolls.len(), fleet.ships.len(), &bump);
 
         // Build hit graph
         for i in 0..self.enhanced_rolls.len() {
-            ships
+            fleet.ships
                 .iter()
                 .enumerate()
                 // The attack hits if the roll is greater than 6 (shield and computer values ignored)
@@ -362,69 +382,67 @@ impl AttackPool {
 
         // For now just use a greedy approach. The ship with the highest damage index is destroyed first
         while hit_graph.has_active_edges() {
-            // println!("Hit graph: {:?}", hit_graph);
-            // println!("Total damage: {:?}", hit_graph.total_possible_damage_per_ship());
             let total_damage = hit_graph.total_possible_damage_per_ship();
-            // Lop invariant:
+            
+            // Loop invariant:
             // IMPORTANT: The ships are sorted by damage index, so the ship with the highest damage index is first in the list
-            let targeted_ship = ships
+            let targeted_ship = fleet.ships
                 .iter()
                 .enumerate()
                 // The ship is still alive. Ships that are destroyed have a hull of < 0
                 // .filter(|(i, _)| ships[*i].hull >= 0)
-                .filter(|(i, _)| total_damage[*i] > ships[*i].hull as u32)
-                .map(|(i, _)| i)
-                .next();
+                .filter(|(i, _)| total_damage[*i] > fleet.ships[*i].hull as u32)
+                .max_by(|(i, a), (j, b)| {
+                    Self::compare_ship_damage(a, b)
+                })
+                .map(|(i, _)| i);
 
             // There is a ship that can be destroyed. Since the list is sorted, the first element is the one with the highest damage index
             if let Some(ship_index) = targeted_ship {
                 // Need one more damage as the hull value to destroy the ship
                 hit_graph.deactivate_all_rolls_attacking_max_dmg(
                     ship_index,
-                    ships[ship_index].hull as u32 + 1,
+                    fleet.ships[ship_index].hull as u32 + 1,
                 );
                 hit_graph.deactivate_all_edges_to_ship(ship_index);
-                ships[ship_index].hull = -1;
+                fleet.ships[ship_index].hull = -1;
                 info!("Destroyed ship: {:?}", ship_index);
                 // println!("New hit graph: {:?}", hit_graph);
             } else {
                 // No ship can be destroyed. The ship with the highest damage index is attacked
-                let ship_index = ships
+                let ship_index = fleet.ships
                     .iter()
                     .enumerate()
                     // The ship is still alive. Ships that are destroyed have a hull of < 0
-                    .filter(|(i, _)| ships[*i].hull >= 0)
+                    .filter(|(i, _)| fleet.ships[*i].hull >= 0)
                     .filter(|(i, _)| total_damage[*i] > 0)
                     .max_by(|(i, a), (j, b)| {
-                        a.get_damage_index()
-                            .partial_cmp(&b.get_damage_index())
-                            .unwrap()
-                            .reverse()
+                        Self::compare_ship_damage(a, b)
                     })
                     .unwrap()
                     .0;
                 let total_damage = hit_graph.get_total_possible_damage_to_ship(ship_index);
 
-                ships[ship_index].hull -= total_damage as i32;
+                fleet.ships[ship_index].hull -= total_damage as i32;
                 info!("Damaged ship: {:?} with {} damage", ship_index, total_damage);
                 hit_graph.deactivate_all_rolls_attacking(ship_index);
             }
         }
 
-        opposing_fleet.ships = ships;
+        // opposing_fleet.ships = ships;
     }
 }
 
 /// Stores information about which ship can hit which other ship (so which damage roll succeeded)
 /// and how much damage a hit would deal
 #[derive(Debug)]
-struct HitGraph {
-    edges: Vec<HitEdge>,
+struct HitGraph<'a> {
+    edges: BumpVec<'a, HitEdge>,
     num_attack_rolls: usize,
     num_ships: usize,
 }
 
-impl HitGraph {
+impl<'a> HitGraph<'a> {
     fn has_active_edges(&self) -> bool {
         !self.edges.is_empty() && self.edges.iter().any(|edge| edge.active)
     }
@@ -437,10 +455,10 @@ impl HitGraph {
         });
     }
 
-    fn new(num_attack_rolls: usize, num_ships: usize) -> HitGraph {
+    fn new(num_attack_rolls: usize, num_ships: usize, bump: &'a Bump) -> HitGraph {
         HitGraph {
             // Just a estimate based on nothing, still decreases total allocation time.
-            edges: Vec::with_capacity(num_attack_rolls * 3),
+            edges: BumpVec::new_in(bump),
             num_attack_rolls,
             num_ships,
         }
@@ -574,8 +592,8 @@ mod tests {
 
     #[test]
     pub fn test_fleet_attack() {
-        let mut attacker = Fleet {
-            ships: vec![Ship {
+        let bump = bumpalo::Bump::new();
+        let mut attacker = Fleet::new ( vec![Ship {
                 hull: 0,
                 initiative: 10,
                 shield: 0,
@@ -583,10 +601,8 @@ mod tests {
                 weapon_1_dmg: 2,
                 weapon_2_dmg: 0,
                 ship_type: ShipType::Interceptor,
-            }],
-        };
-        let mut defender = Fleet {
-            ships: vec![Ship {
+            }],&bump);
+        let mut defender = Fleet::new ( vec![Ship {
                 hull: 0,
                 initiative: 0,
                 shield: 0,
@@ -594,8 +610,7 @@ mod tests {
                 weapon_1_dmg: 2,
                 weapon_2_dmg: 0,
                 ship_type: ShipType::Interceptor,
-            }],
-        };
+            }],&bump);
         // Create a SEEDED RNG
 
         let mut seeded_rng = rand::rngs::StdRng::seed_from_u64(0);
@@ -613,9 +628,9 @@ mod tests {
         // env_logger::builder()
         //     .filter_level(log::LevelFilter::Info)
         //     .init();
+        let bump = bumpalo::Bump::new();
         let mut rng = StdRng::seed_from_u64(0);
-        let attacker_fleet = Fleet {
-            ships: vec![
+        let attacker_fleet = Fleet::new ( vec![
                 Ship {
                     hull: 1,
                     initiative: 1,
@@ -634,11 +649,9 @@ mod tests {
                     weapon_2_dmg: 0,
                     ship_type: ShipType::Interceptor,
                 },
-            ],
-        };
+            ],&bump);
 
-        let defender_fleet = Fleet {
-            ships: vec![
+        let defender_fleet = Fleet::new ( vec![
                 Ship {
                     hull: 2,
                     initiative: 1,
@@ -648,8 +661,7 @@ mod tests {
                     weapon_2_dmg: 0,
                     ship_type: ShipType::Interceptor,
                 },
-            ],
-        };
+            ],&bump);
         let mut defender_wins = 0;
         for i in 0..10 {
             // println!("Simulation {}", i);
@@ -687,12 +699,9 @@ mod tests {
             weapon_2_dmg: 0,
             ship_type: ShipType::Interceptor,
         };
-        let attacker_fleet = Fleet {
-            ships: vec![ship_proto.clone(); 5]
-        };
-        let defender_fleet = Fleet {
-            ships: vec![ship_proto_def.clone(); 5]
-        };
+        let bump = bumpalo::Bump::new();
+        let attacker_fleet = Fleet::new ( vec![ship_proto.clone(); 5], &bump );
+        let defender_fleet = Fleet::new ( vec![ship_proto_def.clone(); 5], &bump);
 
         let mut defender_wins = 0;
         let n = 1;
