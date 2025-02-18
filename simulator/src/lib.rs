@@ -1,7 +1,6 @@
-use itertools::Itertools;
-use rand::rngs::{StdRng, ThreadRng};
-use rand::{Rng, RngCore, SeedableRng};
-// #[cfg(target_arch = "wasm32")]
+use rand::rngs::{StdRng};
+use rand::{SeedableRng};
+use rand_chacha::ChaCha8Rng;
 use wasm_bindgen::prelude::*;
 
 mod simulator;
@@ -32,14 +31,14 @@ cfg_if::cfg_if! {
 
 #[wasm_bindgen]
 pub struct RngState {
-    rng_state: StdRng,
+    rng_state: ChaCha8Rng,
 }
 
 #[wasm_bindgen]
 impl RngState {
     #[wasm_bindgen(constructor)]
     pub fn new(seed: u64) -> Self {
-        let rng_state = StdRng::seed_from_u64(seed);
+        let rng_state = ChaCha8Rng::seed_from_u64(seed);
         RngState { rng_state }
     }
 }

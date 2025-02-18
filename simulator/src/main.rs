@@ -2,6 +2,7 @@ use bumpalo::Bump;
 use log::info;
 use rand::prelude::StdRng;
 use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 use eclipse_sim::{simulate_battle, simulate_battle_bump, simulate_n_battles, BattleResult, Fleet, Ship, ShipType};
 
 fn main() {
@@ -10,7 +11,8 @@ fn main() {
         .init();
     let bump = Bump::new();
     // init_log();
-    let mut rng = StdRng::seed_from_u64(3);
+    // let mut rng = StdRng::seed_from_u64(3);
+    let mut rng = ChaCha8Rng::seed_from_u64(3);
     let ship_proto = Ship {
         hull: 2,
         initiative: 0,

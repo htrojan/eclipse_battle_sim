@@ -1,7 +1,5 @@
 use bumpalo::Bump;
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
-use log::info;
-use rand::prelude::StdRng;
 use rand::SeedableRng;
 use eclipse_sim::{simulate_battle_bump, BattleResult, Fleet, Ship, ShipType};
 
@@ -26,11 +24,13 @@ fn benchmark_my_function(c: &mut Criterion) {
         weapon_2_dmg: 0,
         ship_type: ShipType::Interceptor,
     };
-    let bump = Bump::new();
+
+    let mut bump = Bump::new();
     let attacker_fleet = Fleet::new(vec!(ship_proto.clone(); 20), &bump);
     let defender_fleet = Fleet::new(vec!(ship_proto_def.clone(); 20), &bump);
-
+    
     c.bench_function("simulate_battle", |b| {
+        let mut bump = Bump::new();
         b.iter(|| {
             simulate_battle_bump(
                 black_box(&mut attacker_fleet.clone()),
@@ -38,6 +38,7 @@ fn benchmark_my_function(c: &mut Criterion) {
                 black_box(&mut rng),
                 &bump
             );
+            bump.reset()
         })
     });
 }
