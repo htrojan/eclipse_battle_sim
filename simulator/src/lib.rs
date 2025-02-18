@@ -8,7 +8,8 @@ mod simulator;
 pub use simulator::{BattleResult, Fleet, Ship, ShipType};
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use simulator::{simulate_battle, simulate_round, simulate_battle_bump};
+pub use simulator::{simulate_battle, simulate_round, simulate_battle_bump, simulate_n_battles};
+use crate::simulator::WasmFleet;
 
 cfg_if::cfg_if! {
     if #[cfg(feature = "console_log")] {
@@ -42,20 +43,36 @@ impl RngState {
         RngState { rng_state }
     }
 }
-#[cfg(target_arch = "wasm32")]
-#[wasm_bindgen]
-pub fn simulate_round(attacker: &mut Fleet, defender: &mut Fleet, rng: &mut RngState) {
-    simulator::simulate_round(attacker, defender, &mut rng.rng_state);
-}
+// #[cfg(target_arch = "wasm32")]
+// #[wasm_bindgen]
+// pub fn simulate_round(attacker: &mut Fleet, defender: &mut Fleet, rng: &mut RngState) {
+//     simulator::simulate_round(attacker, defender, &mut rng.rng_state);
+// }
 
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen]
+pub fn simulate_n_battles(
+    attacker: &WasmFleet,
+    defender: &WasmFleet,
+    n: usize,
+    rng: &mut RngState,
+) -> f32 {
+    let bump = bumpalo::Bump::new();
+    let attacker = attacker.clone().into_fleet(&bump);
+    let defender = defender.clone().into_fleet(&bump);
+    simulator::simulate_n_battles(attacker,  defender, &mut rng.rng_state, n, &bump)
+}
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen]
 pub fn simulate_battle(
-    attacker: &mut Fleet,
-    defender: &mut Fleet,
+    attacker: &WasmFleet,
+    defender: &WasmFleet,
     rng: &mut RngState,
 ) -> BattleResult {
-    simulator::simulate_battle(attacker, defender, &mut rng.rng_state)
+    let bump = bumpalo::Bump::new();
+    let mut attacker = attacker.clone().into_fleet(&bump);
+    let mut defender = defender.clone().into_fleet(&bump);
+    simulator::simulate_battle(&mut attacker, &mut defender, &mut rng.rng_state)
 }
 
 #[cfg(target_arch = "wasm32")]

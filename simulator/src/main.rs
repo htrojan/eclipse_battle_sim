@@ -2,7 +2,7 @@ use bumpalo::Bump;
 use log::info;
 use rand::prelude::StdRng;
 use rand::SeedableRng;
-use eclipse_sim::{simulate_battle, simulate_battle_bump, BattleResult, Fleet, Ship, ShipType};
+use eclipse_sim::{simulate_battle, simulate_battle_bump, simulate_n_battles, BattleResult, Fleet, Ship, ShipType};
 
 fn main() {
     env_logger::builder()
@@ -34,18 +34,25 @@ fn main() {
 
     let mut defender_wins = 0;
     let n = 1_000_000;
-    for i in 0..n {
-        // println!("Simulation {}", i);
-        let result = simulate_battle_bump(
-            &mut attacker_fleet.clone(),
-            &mut defender_fleet.clone(),
-            &mut rng,
-            &bump,
-        );
-        if result == BattleResult::DefenderWins {
-            defender_wins += 1;
-        }
-    }
-    info!("Result: {:?}", (defender_wins as f32) / (n as f32));
+    let result = simulate_n_battles(
+        attacker_fleet.clone(),
+        defender_fleet.clone(),
+        &mut rng,
+        n,
+        &bump,
+    );
+    // for i in 0..n {
+    //     // println!("Simulation {}", i);
+    //     let result = simulate_battle_bump(
+    //         &mut attacker_fleet.clone(),
+    //         &mut defender_fleet.clone(),
+    //         &mut rng,
+    //         &bump,
+    //     );
+    //     if result == BattleResult::DefenderWins {
+    //         defender_wins += 1;
+    //     }
+    // }
+    info!("Result: {:?}", result);
 }
 

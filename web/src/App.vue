@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import {BattleResult, Fleet, RngState, Ship, ShipType, simulate_battle} from "simulator"
+import {BattleResult, RngState, Ship, ShipType, simulate_battle, WasmFleet} from "simulator"
 import ShipDisplay from "@/components/ShipDisplay.vue";
 import {ref} from "vue";
 import simulationWorker from "./simulationWorker?worker";
@@ -50,8 +50,8 @@ function simulate_battle_js() {
     }
   }
 
-  let attacker_fleet = new Fleet(attacker);
-  let defender_fleet = new Fleet(defender);
+  let attacker_fleet = new WasmFleet(attacker);
+  let defender_fleet = new WasmFleet(defender);
   console.log("Attacker fleet: ", attacker_fleet);
   console.log("Defender fleet: ", defender_fleet);
 

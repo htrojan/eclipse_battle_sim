@@ -75,9 +75,16 @@ impl Ship {
 }
 
 #[wasm_bindgen]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone,  Serialize, Deserialize)]
+// #[wasm_bindgen(js_name = Fleet)]
 pub struct WasmFleet{
     ships: Vec<Ship>,
+}
+
+impl WasmFleet {
+    pub fn into_fleet(self, bump: &Bump) -> Fleet {
+        Fleet::new(self.ships, &bump)
+    }
 }
 
 #[wasm_bindgen]
@@ -86,12 +93,10 @@ impl WasmFleet {
     pub fn new(ships: Vec<Ship>) -> WasmFleet {
         // Sort ships by initiative at creation time.
         WasmFleet {
-            ships: ships.into_iter().sorted_by(
-                |a, b| a.initiative.cmp(&b.initiative).reverse()
-            ).collect()
+            ships
         }
     }
-    
+
     pub fn to_json(&self) -> String {
         serde_json::to_string(&self).unwrap()
     }
@@ -199,6 +204,32 @@ pub fn simulate_battle<T: RngCore + Clone>(
     simulate_battle_bump(attacker, defender, rng, &bump)
 }
 
+pub fn simulate_n_battles<T: RngCore + Clone>(
+    attacker: Fleet,
+    defender: Fleet,
+    rng: &mut T,
+    n: usize,
+    bump: &Bump
+) -> f32 {
+    let mut attacker_wins = 0;
+    let mut defender_wins = 0;
+    let mut draws = 0;
+    for _ in 0..n {
+        let result = simulate_battle_bump(&mut attacker.clone(), &mut defender.clone(), rng, &bump);
+        match result {
+            BattleResult::AttackerWins => {
+                attacker_wins += 1;
+            }
+            BattleResult::DefenderWins => {
+                defender_wins += 1;
+            }
+            BattleResult::Draw => {
+                draws += 1;
+            }
+        }
+    }
+    defender_wins as f32 / n as f32
+}
 pub fn simulate_battle_bump<T: RngCore + Clone>(
     attacker: &mut Fleet,
     defender: &mut Fleet,
@@ -228,7 +259,6 @@ pub fn simulate_round<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut F
 
 pub fn simulate_round_bump<T: RngCore + Clone>(attacker: &mut Fleet, defender: &mut Fleet, rng: &mut T, bump: &Bump) {
     info!("New Simulation round: \n");
-    // let bump = bumpalo::Bump::new();
 
     if !attacker.has_ships_left() || !defender.has_ships_left() {
         return;
@@ -347,7 +377,7 @@ impl<'a> AttackPool<'a> {
             });
         }
     }
-    
+
     fn compare_ship_damage(a: &Ship, b: &Ship) -> Ordering {
             let c = a.get_damage_index()
                 .partial_cmp(&b.get_damage_index())
@@ -383,7 +413,7 @@ impl<'a> AttackPool<'a> {
         // For now just use a greedy approach. The ship with the highest damage index is destroyed first
         while hit_graph.has_active_edges() {
             let total_damage = hit_graph.total_possible_damage_per_ship();
-            
+
             // Loop invariant:
             // IMPORTANT: The ships are sorted by damage index, so the ship with the highest damage index is first in the list
             let targeted_ship = fleet.ships
